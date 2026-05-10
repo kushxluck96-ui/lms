@@ -1,16 +1,11 @@
-﻿# Dependencies
-node_modules
+﻿node_modules
 .next
 out
 dist
 build
-
-env
+.env
 .env.local
-.env*.local
 .turbo
 vercel.json
 backend/credentials.json
 backend/token.json
-token.json
-credentials.json
