@@ -1,7 +1,6 @@
 const cron = require('node-cron');
 const pool = require('../config/database');
 const { notifyAllEligibleStudents } = require('./notificationService');
-const { createCalendarEvent } = require('./googleService');
 
 const generateDailySessions = async () => {
   console.log('Running daily session generator...');
@@ -38,23 +37,21 @@ const generateDailySessions = async () => {
       const [hours, minutes] = schedule.start_time.split(':');
       scheduledAt.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-      // Try real Google Calendar
       let meetLink = null;
 
       try {
-        console.log('Attempting Google Calendar event creation...');
-        const calendarEvent = await createCalendarEvent({
+        console.log('Creating real Google Meet link...');
+        const { createRealMeetLink } = require('./meetService');
+        const result = await createRealMeetLink({
           title: schedule.title,
-          description: schedule.description || `Live class by ${schedule.teacher_name}`,
           startTime: scheduledAt,
           durationMinutes: schedule.duration_minutes,
           teacherEmail: schedule.teacher_email,
         });
-        meetLink = calendarEvent.meetLink;
-        console.log(`Real Meet link created: ${meetLink}`);
+        meetLink = result.meetLink;
+        console.log(`✅ Real Meet link: ${meetLink}`);
       } catch (googleErr) {
-        console.error('Google Calendar failed:', googleErr.message);
-        console.error('Full error:', googleErr.errors || googleErr.response?.data);
+        console.error('Meet creation failed:', googleErr.message);
         meetLink = `https://meet.google.com/fallback-${Date.now()}`;
       }
 

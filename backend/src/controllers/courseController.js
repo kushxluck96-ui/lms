@@ -65,13 +65,14 @@ const getCourseById = async (req, res) => {
       return res.status(404).json({ error: 'Course not found' });
     }
 
-    const modulesResult = await pool.query(
+   const modulesResult = await pool.query(
       `SELECT m.id, m.title, m.order_index,
               json_agg(
                 json_build_object(
                   'id', l.id,
                   'title', l.title,
                   'type', l.type,
+                  'content_url', l.content_url,
                   'duration_minutes', l.duration_minutes,
                   'order_index', l.order_index,
                   'is_free_preview', l.is_free_preview

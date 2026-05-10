@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import api from '@/lib/api';
+import CourseBuilder from './CourseBuilder';
 
 interface Course {
   id: string;
@@ -30,14 +31,13 @@ export default function TeacherDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [googleConnected, setGoogleConnected] = useState(false);
 
-  // Create course form
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [courseForm, setCourseForm] = useState({ title: '', description: '' });
   const [courseLoading, setCourseLoading] = useState(false);
   const [courseMsg, setCourseMsg] = useState('');
 
-  // Create schedule form
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({
     title: '',
@@ -48,15 +48,19 @@ export default function TeacherDashboard() {
   });
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleMsg, setScheduleMsg] = useState('');
+  const [createdMeetLink, setCreatedMeetLink] = useState('');
 
   useEffect(() => {
-    if (!loading && !user) router.push('/login');
-    if (!loading && user?.role !== 'teacher') router.push('/login');
-  }, [user, loading]);
+    if (loading) return;
 
-  useEffect(() => {
-    if (user) fetchData();
-  }, [user]);
+    if (!user || user.role !== 'teacher') {
+      router.push('/login');
+      return;
+    }
+
+    fetchData();
+    checkGoogleConnection();
+  }, [user, loading, router]);
 
   const fetchData = async () => {
     try {
@@ -64,10 +68,31 @@ export default function TeacherDashboard() {
         api.get('/courses/my-courses'),
         api.get('/classes/sessions'),
       ]);
-      setCourses(coursesRes.data.courses);
-      setSessions(sessionsRes.data.sessions);
+      setCourses(coursesRes.data.courses || []);
+      setSessions(sessionsRes.data.sessions || []);
     } catch (err) {
       console.error('Fetch error:', err);
+    }
+  };
+
+  const checkGoogleConnection = async () => {
+    try {
+      const res = await api.get('/google/auth/status');
+      setGoogleConnected(res.data.connected);
+    } catch {
+      setGoogleConnected(false);
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    try {
+      const res = await api.get('/google/auth/url');
+      if (res.data.success && res.data.url) {
+        window.open(res.data.url, '_blank');
+        setTimeout(checkGoogleConnection, 5000);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to connect Google account');
     }
   };
 
@@ -77,7 +102,7 @@ export default function TeacherDashboard() {
     setCourseMsg('');
     try {
       await api.post('/courses', courseForm);
-      setCourseMsg('Course created successfully!');
+      setCourseMsg('✅ Course created successfully!');
       setCourseForm({ title: '', description: '' });
       setShowCourseForm(false);
       fetchData();
@@ -107,31 +132,45 @@ export default function TeacherDashboard() {
   };
 
   const handleCreateSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setScheduleLoading(true);
-    setScheduleMsg('');
-    try {
-      await api.post('/classes/schedules', scheduleForm);
-      setScheduleMsg('Schedule created! Triggering session generation...');
-      await api.post('/classes/trigger-generation');
-      setScheduleMsg('Schedule created and sessions generated!');
-      setShowScheduleForm(false);
-      fetchData();
-    } catch (err: any) {
-      setScheduleMsg(err.response?.data?.error || 'Failed to create schedule');
-    } finally {
-      setScheduleLoading(false);
-    }
-  };
+  e.preventDefault();
+  setScheduleLoading(true);
+  setScheduleMsg('');
+  setCreatedMeetLink('');
 
+  try {
+    const res = await api.post('/classes/schedules', {
+      ...scheduleForm,
+      duration_minutes: Number(scheduleForm.duration_minutes) || 60,
+    });
+
+    if (res.data.meet_link) {
+      setCreatedMeetLink(res.data.meet_link);
+      setScheduleMsg('✅ Schedule created with real Google Meet link!');
+    } else {
+      setScheduleMsg('⚠️ Schedule created but Meet link generation failed. Please reconnect your Google account.');
+    }
+
+    setScheduleForm({
+      title: '',
+      description: '',
+      start_time: '10:00',
+      duration_minutes: 60,
+      day_of_week: [],
+    });
+
+    fetchData();
+  } catch (err: any) {
+    const errorMsg = err.response?.data?.error || 'Failed to create schedule';
+    setScheduleMsg(`❌ ${errorMsg}`);
+  } finally {
+    setScheduleLoading(false);
+  }
+};
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-500">Loading...</p>
-      </div>
+      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
     </div>
   );
 
@@ -162,9 +201,7 @@ export default function TeacherDashboard() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition ${
-                activeTab === tab
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-500 hover:text-gray-700'
+                activeTab === tab ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {tab}
@@ -195,7 +232,39 @@ export default function TeacherDashboard() {
               </div>
             </div>
 
-            {/* Quick actions */}
+            {/* Google Connection Status */}
+            <div className={`rounded-2xl p-6 border ${googleConnected ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100 shadow-sm'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${googleConnected ? 'bg-green-100' : 'bg-gray-100'}`}>
+                    <span className="text-xl">🔗</span>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">Google Meet Integration</div>
+                    <div className="text-sm text-gray-500">
+                      {googleConnected
+                        ? '✅ Connected — Real Meet links will be auto-generated'
+                        : 'Connect your Google account to generate real Meet links'}
+                    </div>
+                  </div>
+                </div>
+                {!googleConnected && (
+                  <button
+                    onClick={handleConnectGoogle}
+                    className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition"
+                  >
+                    Connect Google
+                  </button>
+                )}
+                {googleConnected && (
+                  <span className="px-3 py-1.5 bg-green-100 text-green-700 rounded-xl text-sm font-medium">
+                    Connected ✅
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
                 onClick={() => { setActiveTab('my courses'); setShowCourseForm(true); }}
@@ -211,7 +280,7 @@ export default function TeacherDashboard() {
               >
                 <div className="text-3xl mb-3">📅</div>
                 <div className="font-semibold text-lg">Schedule Live Class</div>
-                <div className="text-amber-100 text-sm mt-1">Set recurring class schedule</div>
+                <div className="text-amber-100 text-sm mt-1">Auto-generates Google Meet link</div>
               </button>
             </div>
 
@@ -227,10 +296,21 @@ export default function TeacherDashboard() {
                         <div className="text-sm text-gray-500">
                           {new Date(s.scheduled_at).toLocaleString()} · {s.duration_minutes} min
                         </div>
+                        {s.meet_link && (
+                          <a href={s.meet_link} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-indigo-500 hover:underline font-mono">
+                            {s.meet_link}
+                          </a>
+                        )}
                       </div>
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium capitalize">
-                        {s.status}
-                      </span>
+                      <a
+                        href={s.meet_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-green-600 transition"
+                      >
+                        Start Class
+                      </a>
                     </div>
                   ))}
                 </div>
@@ -252,16 +332,11 @@ export default function TeacherDashboard() {
               </button>
             </div>
 
-            {/* Create Course Form */}
             {showCourseForm && (
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-indigo-100">
                 <h3 className="font-semibold text-gray-900 mb-4">Create New Course</h3>
                 {courseMsg && (
-                  <div className={`mb-4 p-3 rounded-lg text-sm ${
-                    courseMsg.includes('success')
-                      ? 'bg-green-50 text-green-600'
-                      : 'bg-red-50 text-red-600'
-                  }`}>
+                  <div className={`mb-4 p-3 rounded-lg text-sm ${courseMsg.includes('✅') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
                     {courseMsg}
                   </div>
                 )}
@@ -272,7 +347,7 @@ export default function TeacherDashboard() {
                       type="text"
                       value={courseForm.title}
                       onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       placeholder="e.g. Complete Python Bootcamp"
                       required
                     />
@@ -282,9 +357,9 @@ export default function TeacherDashboard() {
                     <textarea
                       value={courseForm.description}
                       onChange={(e) => setCourseForm({ ...courseForm, description: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                      placeholder="What will students learn?"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       rows={3}
+                      placeholder="What will students learn?"
                     />
                   </div>
                   <button
@@ -298,49 +373,29 @@ export default function TeacherDashboard() {
               </div>
             )}
 
-            {/* Courses List */}
-            {courses.length === 0 ? (
-              <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-100">
-                <div className="text-5xl mb-4">📚</div>
-                <p className="text-gray-500 mb-4">No courses yet</p>
-                <button
-                  onClick={() => setShowCourseForm(true)}
-                  className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition"
-                >
-                  Create your first course
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {courses.map((course) => (
-                  <div key={course.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900 text-lg">{course.title}</h3>
-                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                        course.is_published
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {course.is_published ? '✅ Published' : '📝 Draft'}
-                      </span>
-                    </div>
-                    <p className="text-gray-500 text-sm mb-4 line-clamp-2">{course.description}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
-                      <span>📦 {course.module_count} modules</span>
-                      <span>📖 {course.lesson_count} lessons</span>
-                    </div>
-                    {!course.is_published && (
-                      <button
-                        onClick={() => handlePublish(course.id)}
-                        className="w-full bg-green-500 text-white py-2 rounded-xl text-sm font-medium hover:bg-green-600 transition"
-                      >
-                        Publish Course
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+           {courses.length === 0 ? (
+  <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-100">
+    <div className="text-5xl mb-4">📚</div>
+    <p className="text-gray-500 mb-4">No courses yet</p>
+    <button
+      onClick={() => setShowCourseForm(true)}
+      className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-medium"
+    >
+      Create your first course
+    </button>
+  </div>
+) : (
+  <div className="space-y-6">
+    {courses.map((course) => (
+      <CourseBuilder
+        key={course.id}
+        course={course}
+        onPublish={handlePublish}
+        onRefresh={fetchData}
+      />
+    ))}
+  </div>
+)}
           </div>
         )}
 
@@ -357,19 +412,67 @@ export default function TeacherDashboard() {
               </button>
             </div>
 
+            {/* Google not connected warning */}
+            {!googleConnected && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div className="flex-1">
+                  <div className="font-medium text-amber-800">Google account not connected</div>
+                  <div className="text-sm text-amber-600">Connect your Google account to auto-generate real Meet links</div>
+                </div>
+                <button
+                  onClick={handleConnectGoogle}
+                  className="bg-amber-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-amber-600 transition"
+                >
+                  Connect Now
+                </button>
+              </div>
+            )}
+
             {/* Create Schedule Form */}
             {showScheduleForm && (
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-amber-100">
-                <h3 className="font-semibold text-gray-900 mb-4">Create Class Schedule</h3>
+                <h3 className="font-semibold text-gray-900 mb-1">Create Class Schedule</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  {googleConnected
+                    ? '✅ A real Google Meet link will be auto-generated'
+                    : '⚠️ Connect Google account first to get real Meet links'}
+                </p>
+
                 {scheduleMsg && (
-                  <div className={`mb-4 p-3 rounded-lg text-sm ${
-                    scheduleMsg.includes('!')
-                      ? 'bg-green-50 text-green-600'
-                      : 'bg-red-50 text-red-600'
-                  }`}>
-                    {scheduleMsg}
-                  </div>
-                )}
+  <div className={`mb-4 p-4 rounded-xl text-sm ${
+    scheduleMsg.includes('✅')
+      ? 'bg-green-50 text-green-700 border border-green-200'
+      : scheduleMsg.includes('⚠️')
+      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+      : 'bg-red-50 text-red-600 border border-red-200'
+  }`}>
+    {scheduleMsg}
+    {scheduleMsg.includes('⚠️') && (
+      <button
+        type="button"
+        onClick={handleConnectGoogle}
+        className="mt-2 block bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition"
+      >
+        🔗 Reconnect Google Account
+      </button>
+    )}
+    {createdMeetLink && (
+      <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
+        <div className="text-xs text-gray-500 mb-1">Your Google Meet link:</div>
+        <a
+          href={createdMeetLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-600 font-mono text-sm hover:underline break-all"
+        >
+          {createdMeetLink}
+        </a>
+      </div>
+    )}
+  </div>
+)}
+
                 <form onSubmit={handleCreateSchedule} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Class Title</label>
@@ -378,21 +481,35 @@ export default function TeacherDashboard() {
                       value={scheduleForm.title}
                       onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
-                      placeholder="e.g. Python Live Q&A"
+                      placeholder="e.g. JavaScript Live Q&A"
                       required
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Days of Week</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                    <textarea
+                      value={scheduleForm.description}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, description: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+                      rows={2}
+                      placeholder="What will you cover in this class?"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Repeat on days
+                    </label>
                     <div className="flex gap-2 flex-wrap">
                       {days.map((day, index) => (
                         <button
                           key={day}
                           type="button"
                           onClick={() => toggleDay(index)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                          className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
                             scheduleForm.day_of_week.includes(index)
-                              ? 'bg-amber-500 text-white'
+                              ? 'bg-amber-500 text-white shadow-sm'
                               : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                           }`}
                         >
@@ -400,7 +517,11 @@ export default function TeacherDashboard() {
                         </button>
                       ))}
                     </div>
+                    {scheduleForm.day_of_week.length === 0 && (
+                      <p className="text-xs text-red-400 mt-1">Please select at least one day</p>
+                    )}
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
@@ -409,6 +530,7 @@ export default function TeacherDashboard() {
                         value={scheduleForm.start_time}
                         onChange={(e) => setScheduleForm({ ...scheduleForm, start_time: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+                        required
                       />
                     </div>
                     <div>
@@ -416,19 +538,31 @@ export default function TeacherDashboard() {
                       <input
                         type="number"
                         value={scheduleForm.duration_minutes}
-                        onChange={(e) => setScheduleForm({ ...scheduleForm, duration_minutes: parseInt(e.target.value) })}
+                        onChange={(e) => setScheduleForm({
+                          ...scheduleForm,
+                          duration_minutes: parseInt(e.target.value) || 60
+                        })}
                         className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
                         min={15}
                         max={180}
+                        step={15}
                       />
                     </div>
                   </div>
+
                   <button
                     type="submit"
                     disabled={scheduleLoading || scheduleForm.day_of_week.length === 0}
-                    className="bg-amber-500 text-white px-6 py-3 rounded-xl font-medium hover:bg-amber-600 transition disabled:opacity-50"
+                    className="w-full bg-amber-500 text-white py-3 rounded-xl font-semibold hover:bg-amber-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {scheduleLoading ? 'Creating...' : 'Create Schedule'}
+                    {scheduleLoading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        Generating Meet link...
+                      </>
+                    ) : (
+                      <>📅 Create Schedule with Meet Link</>
+                    )}
                   </button>
                 </form>
               </div>
@@ -449,32 +583,44 @@ export default function TeacherDashboard() {
             ) : (
               <div className="space-y-4">
                 {sessions.map((session) => (
-                  <div key={session.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-gray-900 text-lg">{session.title}</div>
-                      <div className="text-gray-500 text-sm mt-1">
-                        📅 {new Date(session.scheduled_at).toLocaleString()}
+                  <div key={session.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900 text-lg mb-1">{session.title}</div>
+                        <div className="text-gray-500 text-sm">
+                          📅 {new Date(session.scheduled_at).toLocaleString()}
+                        </div>
+                        <div className="text-gray-500 text-sm">⏱️ {session.duration_minutes} minutes</div>
+                        {session.meet_link && (
+                          <a
+                            href={session.meet_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-indigo-500 hover:underline font-mono mt-1 block"
+                          >
+                            🔗 {session.meet_link}
+                          </a>
+                        )}
                       </div>
-                      <div className="text-gray-500 text-sm">⏱️ {session.duration_minutes} minutes</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${
-                        session.status === 'scheduled'
-                          ? 'bg-blue-100 text-blue-700'
-                          : session.status === 'live'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {session.status}
-                      </span>
-                      <a
-                        href={session.meet_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition"
-                      >
-                        Start Class
-                      </a>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${
+                          session.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                          session.status === 'live' ? 'bg-green-100 text-green-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {session.status}
+                        </span>
+                        {session.meet_link && (
+                          <a
+                            href={session.meet_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-green-600 transition"
+                          >
+                            🎥 Start Class
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -484,5 +630,6 @@ export default function TeacherDashboard() {
         )}
       </div>
     </div>
+    
   );
 }

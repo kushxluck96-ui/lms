@@ -3,17 +3,25 @@ const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 require('dotenv').config();
 
+// Generate Tokens - Includes email (Important for Google Meet)
 const generateTokens = (user) => {
   const accessToken = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, full_name: user.full_name },
+    { 
+      id: user.id, 
+      email: user.email,        // ← Required for createMeetLink
+      role: user.role, 
+      full_name: user.full_name 
+    },
     process.env.JWT_SECRET,
     { expiresIn: '15m' }
   );
+
   const refreshToken = jwt.sign(
     { id: user.id },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
+
   return { accessToken, refreshToken };
 };
 
@@ -45,6 +53,7 @@ const register = async (req, res) => {
 
     const user = result.rows[0];
 
+    // Auto create demo subscription for students
     if (allowedRole === 'student') {
       await pool.query(
         `INSERT INTO subscriptions (user_id, plan, status) VALUES ($1, 'demo', 'active')`,
@@ -125,5 +134,51 @@ const getMe = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+const updateProfile = async (req, res) => {
+  try {
+    const { full_name } = req.body;
+    if (!full_name) return res.status(400).json({ error: 'Full name is required' });
 
-module.exports = { register, login, getMe };
+    const result = await pool.query(
+      `UPDATE users SET full_name = $1, updated_at = NOW()
+       WHERE id = $2 RETURNING id, email, full_name, role`,
+      [full_name, req.user.id]
+    );
+
+    res.json({ message: 'Profile updated', user: result.rows[0] });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+
+    const isMatch = await bcrypt.compare(current_password, user.password_hash);
+    if (!isMatch) return res.status(400).json({ error: 'Current password is incorrect' });
+
+    const password_hash = await bcrypt.hash(new_password, 12);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [password_hash, req.user.id]
+    );
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  getMe,
+  updateProfile,
+  changePassword
+};

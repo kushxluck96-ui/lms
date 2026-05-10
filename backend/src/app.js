@@ -9,6 +9,8 @@ const courseRoutes = require('./routes/courseRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const classRoutes = require('./routes/classRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const googleRoutes = require('./routes/googleRoutes');   // ← Add this
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
@@ -17,6 +19,8 @@ app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'LMS API is running', timestamp: new Date() });
@@ -27,6 +31,8 @@ app.use('/api/v1/courses', courseRoutes);
 app.use('/api/v1/progress', progressRoutes);
 app.use('/api/v1/classes', classRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/google', googleRoutes);
+app.use('/api/v1/payments', paymentRoutes);
 
 
 app.use((req, res) => {
