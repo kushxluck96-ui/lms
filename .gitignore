@@ -5,16 +5,11 @@ out
 dist
 build
 
-# Env files
-.env
+env
 .env.local
 .env*.local
-
-# Cache
 .turbo
 vercel.json
-
-# Secrets
 backend/credentials.json
 backend/token.json
 token.json
