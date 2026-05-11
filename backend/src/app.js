@@ -14,41 +14,23 @@ const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'https://lms-mocha-nine.vercel.app'
-].filter(Boolean);
-
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log(`❌ Blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// ====================== SUPER SIMPLE CORS (this will fix your error) ======================
+app.use(cors({
+  origin: true,                    // ← allows your Vercel frontend
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Authorization']
-};
-
-app.use(cors(corsOptions));
-
-// Handle preflight requests explicitly
-
-// ========================================================
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+// =======================================================================================
 
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'LMS API is running' });
+  res.json({ status: 'ok', message: 'LMS API is running 🚀' });
 });
 
 app.use('/api/v1/auth', authRoutes);
