@@ -17,10 +17,11 @@ const app = express();
 // ====================== SUPER SIMPLE CORS (this will fix your error) ======================
 // Nuclear CORS - allows everything
 app.use(cors({
-  origin: true,
+  origin: true,                    // ← This allows your Vercel domain
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization']
 }));
 // =======================================================================================
 
