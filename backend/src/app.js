@@ -14,23 +14,16 @@ const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-// ====================== CORS CONFIG ======================
 const allowedOrigins = [
-  process.env.FRONTEND_URL,           // Should be https://lms-mocha-nine.vercel.app in .env
+  process.env.FRONTEND_URL,
   'http://localhost:3000',
-  'http://localhost:5173',            // if using Vite
-  'https://lms-mocha-nine.vercel.app' // fallback
-];
-
-// Remove duplicates and null/undefined
-const cleanOrigins = [...new Set(allowedOrigins.filter(Boolean))];
+  'http://localhost:5173',
+  'https://lms-mocha-nine.vercel.app'
+].filter(Boolean);
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (cleanOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.log(`❌ Blocked origin: ${origin}`);
@@ -46,7 +39,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
+
 // ========================================================
 
 app.use(helmet());
