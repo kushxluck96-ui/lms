@@ -20,14 +20,19 @@ const allowedOrigins = [
   'http://localhost:3000'
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('CORS blocked: ' + origin));
-  },
+const cors = require('cors');
+
+const corsOptions = {
+  origin: 'https://lms-mocha-nine.vercel.app',
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+
+// 🔥 IMPORTANT: handle preflight explicitly
+app.options('*', cors(corsOptions));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
