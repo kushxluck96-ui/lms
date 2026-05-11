@@ -15,8 +15,9 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const app = express();
 
 // ====================== SUPER SIMPLE CORS (this will fix your error) ======================
+// Nuclear CORS - allows everything
 app.use(cors({
-  origin: true,                    // ← allows your Vercel frontend
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
