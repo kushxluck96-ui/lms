@@ -15,7 +15,19 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS blocked: ' + origin));
+  },
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
