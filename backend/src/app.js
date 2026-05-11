@@ -9,38 +9,53 @@ const courseRoutes = require('./routes/courseRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const classRoutes = require('./routes/classRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const googleRoutes = require('./routes/googleRoutes');   // ← Add this
+const googleRoutes = require('./routes/googleRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-app.use(helmet());
+// ====================== CORS CONFIG ======================
 const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000'
+  process.env.FRONTEND_URL,           // Should be https://lms-mocha-nine.vercel.app in .env
+  'http://localhost:3000',
+  'http://localhost:5173',            // if using Vite
+  'https://lms-mocha-nine.vercel.app' // fallback
 ];
 
-const cors = require('cors');
+// Remove duplicates and null/undefined
+const cleanOrigins = [...new Set(allowedOrigins.filter(Boolean))];
 
 const corsOptions = {
-  origin: 'https://lms-mocha-nine.vercel.app',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (cleanOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`❌ Blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization']
 };
 
 app.use(cors(corsOptions));
 
-// 🔥 IMPORTANT: handle preflight explicitly
+// Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
+// ========================================================
+
+app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
-
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'LMS API is running', timestamp: new Date() });
+  res.json({ status: 'ok', message: 'LMS API is running' });
 });
 
 app.use('/api/v1/auth', authRoutes);
@@ -50,7 +65,6 @@ app.use('/api/v1/classes', classRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/google', googleRoutes);
 app.use('/api/v1/payments', paymentRoutes);
-
 
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.url} not found` });
