@@ -20,7 +20,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'https://lms-mocha-nine.vercel.app',
-  'https://lms-production-691e.up.railway.app'   // ← Your Railway domain
+  'https://lms-production-ef65.up.railway.app'   // ← Your Railway domain
 ].filter(Boolean);
 
 console.log('✅ Allowed Origins:', allowedOrigins);
