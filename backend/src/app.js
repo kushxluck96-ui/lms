@@ -17,11 +17,12 @@ const app = express();
 // ====================== SUPER SIMPLE CORS (this will fix your error) ======================
 // Nuclear CORS - allows everything
 app.use(cors({
-  origin: true,                    // ← This allows your Vercel domain
+  origin: [
+    'http://localhost:3000',
+    'https://lms-mocha-nine.vercel.app',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Authorization']
 }));
 // =======================================================================================
 
