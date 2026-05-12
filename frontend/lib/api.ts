@@ -1,13 +1,9 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL 
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1` 
-  : 'http://localhost:5000/api/v1';
-
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1',
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,          // Important for cookies/auth
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
