@@ -11,11 +11,10 @@ const classRoutes = require('./routes/classRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const googleRoutes = require('./routes/googleRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const instituteRoutes = require('./routes/instituteRoutes');
 
 const app = express();
 
-// ====================== SUPER SIMPLE CORS (this will fix your error) ======================
-// Nuclear CORS - allows everything
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -24,16 +23,14 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true,
 }));
-// =======================================================================================
 
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'LMS API is running 🚀' });
+  res.json({ status: 'ok', message: 'LMS API is running' });
 });
 
 app.use('/api/v1/auth', authRoutes);
@@ -43,6 +40,7 @@ app.use('/api/v1/classes', classRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/google', googleRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/institutes', instituteRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.url} not found` });
