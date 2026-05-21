@@ -19,6 +19,7 @@ export default function RegisterPage() {
     try {
       await register(form);
       if (form.role === 'teacher') router.push('/dashboard/teacher');
+      else if (form.role === 'institute_admin') router.push('/dashboard/institute/setup');
       else router.push('/dashboard/student');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
@@ -26,6 +27,12 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  const roles = [
+    { value: 'student', label: '👨‍🎓 Student', desc: 'Learn and grow' },
+    { value: 'teacher', label: '👨‍🏫 Teacher', desc: 'Create and teach' },
+    { value: 'institute_admin', label: '🏫 Institute', desc: 'Manage your school' },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
@@ -84,19 +91,21 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
-              <div className="grid grid-cols-2 gap-3">
-                {['student', 'teacher'].map((role) => (
+              <div className="grid grid-cols-3 gap-3">
+                {roles.map((role) => (
                   <button
-                    key={role}
+                    key={role.value}
                     type="button"
-                    onClick={() => setForm({ ...form, role })}
-                    className={`py-3 rounded-xl border-2 font-medium capitalize transition ${
-                      form.role === role
+                    onClick={() => setForm({ ...form, role: role.value })}
+                    className={`py-3 px-2 rounded-xl border-2 font-medium transition text-center ${
+                      form.role === role.value
                         ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
                         : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                   >
-                    {role === 'student' ? '👨‍🎓 Student' : '👨‍🏫 Teacher'}
+                    <div className="text-lg mb-1">{role.label.split(' ')[0]}</div>
+                    <div className="text-xs font-medium">{role.label.split(' ').slice(1).join(' ')}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{role.desc}</div>
                   </button>
                 ))}
               </div>
