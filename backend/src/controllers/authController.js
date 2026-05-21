@@ -42,7 +42,7 @@ const register = async (req, res) => {
     }
 
     const password_hash = await bcrypt.hash(password, 12);
-    const allowedRole = ['student', 'teacher'].includes(role) ? role : 'student';
+    const allowedRole = ['student', 'teacher', 'institute_admin'].includes(role) ? role : 'student';
 
     const result = await pool.query(
       `INSERT INTO users (email, password_hash, full_name, role)
